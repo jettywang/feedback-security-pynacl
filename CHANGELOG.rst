@@ -1,6 +1,13 @@
 Changelog
 =========
 
+UNRELEASED
+----------
+* Added :mod:`nacl.secretstream`, high level push/pull stream wrappers around
+  ``crypto_secretstream_xchacha20poly1305`` that expose explicit archive
+  completeness (an authenticated ``FINAL`` record) and reject truncated,
+  forged or trailing-data streams.
+
 1.6.2 (2026-01-01)
 ------------------
 * Updated ``libsodium`` to 1.0.20-stable (2025-12-31 build) to resolve

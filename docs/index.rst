@@ -8,6 +8,7 @@ Contents
 
    public
    secret
+   secretstream
    signing
    hashing
    password_hashing

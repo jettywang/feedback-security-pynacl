@@ -97,6 +97,52 @@ Message's user perspective (:py:func:`~nacl.hash.sha256`,
     Digest of modified message is different from original digest
 
 
+Incremental and branched hashing
+--------------------------------
+
+When several messages share a common header, create one
+:class:`~nacl.hashlib.blake2b` instance for that header and branch it with
+``copy``. Each copy owns an independent native state buffer, so updates to
+one branch cannot affect the original state or another branch.
+
+.. testcode::
+
+    import nacl.hashlib
+
+    key = b"0123456789abcdef0123456789abcdef"
+    salt = b"branch-salt-16b!"
+    person = b"branch-person-16"
+    digest_size = 48
+
+    header = b"audit-service:common-header\n"
+    base = nacl.hashlib.blake2b(
+        header,
+        digest_size=digest_size,
+        key=key,
+        salt=salt,
+        person=person,
+    )
+
+    branches = {name: base.copy() for name in ("read", "write")}
+    branches["read"].update(b"scope=read;")
+    branches["write"].update(b"scope=write;")
+
+    read_digest = branches["read"].digest()
+    write_digest = branches["write"].digest()
+
+    # Both branches remain live after producing an intermediate digest.
+    branches["read"].update(b"payload=alpha;")
+    branches["write"].update(b"payload=beta;")
+
+``nacl.hashlib.blake2b.digest`` finalizes an internal copy of the state,
+which means the hash object can continue accepting ``update`` calls and can
+produce another digest later. The lower-level ``nacl.bindings`` interface
+does not do this automatically: ``crypto_generichash_blake2b_final``
+finalizes the supplied ``Blake2State`` in place and consumes it. Calling
+``update`` afterwards does not restore the state; the next finalization
+raises an error. To preserve a live low-level stream, call
+``Blake2State.copy`` before finalization and finalize the copy.
+
 Additional hashing usages for :class:`~nacl.hash.blake2b`
 ---------------------------------------------------------
 

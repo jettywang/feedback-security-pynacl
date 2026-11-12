@@ -172,6 +172,11 @@ class Blake2State:
         raise TypeError(f"can't pickle {self.__class__.__name__} objects")
 
     def copy(self) -> Self:
+        """Return an independent copy of this state.
+
+        The copy owns a new native state buffer; updates and finalization
+        performed on either state do not affect the other.
+        """
         _st = self.__class__(self.digest_size)
         ffi.memmove(
             _st._statebuf, self._statebuf, crypto_generichash_STATEBYTES
@@ -235,6 +240,11 @@ def generichash_blake2b_update(state: Blake2State, data: bytes) -> None:
     :type state: :py:class:`.Blake2State`
     :param data:
     :type data: bytes
+
+    This function must only be used with a live state. A state passed to
+    :func:`generichash_blake2b_final` is consumed and cannot be updated
+    and finalized again; call :meth:`Blake2State.copy` first to preserve a
+    stream that must remain usable.
     """
 
     ensure(
@@ -263,6 +273,13 @@ def generichash_blake2b_final(state: Blake2State) -> bytes:
     :type state: :py:class:`.Blake2State`
     :return: the blake2 digest of the passed-in data stream
     :rtype: bytes
+
+    Finalization is performed in place and consumes ``state``. Calling
+    ``update`` afterwards does not restore the finalized state, and a second
+    finalization raises ``RuntimeError``. To take an intermediate digest
+    while keeping the data stream alive, call :meth:`Blake2State.copy` and
+    finalize the copy. The hashlib-compatible
+    :meth:`nacl.hashlib.blake2b.digest` performs that copy internally.
     """
 
     ensure(

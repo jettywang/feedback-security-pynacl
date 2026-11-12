@@ -22,6 +22,13 @@ to cpython standard library's hashlib module in cpython's version 3.6.
     :func:`digest` and :func:`hexdigest` have the same semantics
     as described in hashlib documentation.
 
+    Calling :py:meth:`digest` or :py:meth:`hexdigest` does not finalize
+    or otherwise modify the hash object: the digest is computed on an
+    internal copy of the state, so additional :py:meth:`update` calls and
+    repeated digests remain valid. :py:meth:`copy` returns an independent
+    hash object backed by its own native BLAKE2b state buffer; updates made
+    to one copy cannot affect the original object or any other copy.
+
     Each instance exposes the :py:attr:`digest_size`, :py:attr:`block_size`
     :py:attr:`name` properties as required by hashlib API.
 

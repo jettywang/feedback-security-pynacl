@@ -95,9 +95,15 @@ class blake2b:
         return "blake2b"
 
     def update(self, data: bytes) -> None:
+        """Append ``data`` to the data stream represented by this state."""
         _b2b_update(self._state, data)
 
     def digest(self) -> bytes:
+        """Return the digest without consuming the hash state.
+
+        Finalization is performed on an internal copy, so further
+        :meth:`update` calls and repeated :meth:`digest` calls remain valid.
+        """
         _st = self._state.copy()
         return _b2b_final(_st)
 
@@ -105,6 +111,11 @@ class blake2b:
         return bytes_as_string(binascii.hexlify(self.digest()))
 
     def copy(self) -> "blake2b":
+        """Return an independent copy of this hash object.
+
+        The copy owns its own native BLAKE2b state buffer; updates to either
+        object do not affect the other.
+        """
         _cp = type(self)(digest_size=self.digest_size)
         _st = self._state.copy()
         _cp._state = _st

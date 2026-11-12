@@ -19,7 +19,12 @@ import nacl.bindings
 from nacl import encoding
 from nacl import exceptions as exc
 from nacl.encoding import Encoder
-from nacl.utils import EncryptedMessage, StringFixer, random
+from nacl.utils import (
+    EncryptedMessage,
+    SecretStringFixer,
+    StringFixer,
+    random,
+)
 
 if TYPE_CHECKING:
     from typing_extensions import Self
@@ -34,6 +39,9 @@ class PublicKey(encoding.Encodable, StringFixer):
     :param encoder: A class that is able to decode the `public_key`
 
     :cvar SIZE: The size that the public key is required to be
+
+    .. note:: A public key is not secret, so ``str(key)`` renders its bytes as
+        a ``bytes`` literal. Private keys do not behave this way.
     """
 
     SIZE: ClassVar[int] = nacl.bindings.crypto_box_PUBLICKEYBYTES
@@ -67,7 +75,7 @@ class PublicKey(encoding.Encodable, StringFixer):
         return not (self == other)
 
 
-class PrivateKey(encoding.Encodable, StringFixer):
+class PrivateKey(encoding.Encodable, SecretStringFixer):
     """
     Private key for decrypting messages using the Curve25519 algorithm.
 
@@ -82,6 +90,11 @@ class PrivateKey(encoding.Encodable, StringFixer):
     :cvar SIZE: The size that the private key is required to be
     :cvar SEED_SIZE: The size that the seed used to generate the
                      private key is required to be
+
+    .. note:: Stringifying a ``PrivateKey`` (``str()``, ``repr()``, f-strings
+        or container logging) never prints its key bytes and yields a redacted
+        placeholder instead. Serialize it explicitly with ``bytes(key)`` or
+        ``key.encode(encoder=...)`` when the raw material is required.
     """
 
     SIZE: ClassVar[int] = nacl.bindings.crypto_box_SECRETKEYBYTES
@@ -164,7 +177,7 @@ class PrivateKey(encoding.Encodable, StringFixer):
         return cls(random(PrivateKey.SIZE), encoder=encoding.RawEncoder)
 
 
-class Box(encoding.Encodable, StringFixer):
+class Box(encoding.Encodable, SecretStringFixer):
     """
     The Box class boxes and unboxes messages between a pair of keys
 
@@ -182,6 +195,11 @@ class Box(encoding.Encodable, StringFixer):
         decrypt messages
 
     :cvar NONCE_SIZE: The size that the nonce is required to be.
+
+    .. note:: A ``Box`` holds the shared secret, so stringifying it produces a
+        redacted placeholder rather than the shared key bytes. Use
+        ``bytes(box)``, :meth:`shared_key` or :meth:`decode`/``encode`` for
+        explicit serialization.
     """
 
     NONCE_SIZE: ClassVar[int] = nacl.bindings.crypto_box_NONCEBYTES
@@ -316,7 +334,7 @@ class Box(encoding.Encodable, StringFixer):
 _Key = TypeVar("_Key", PublicKey, PrivateKey)
 
 
-class SealedBox(encoding.Encodable, StringFixer, Generic[_Key]):
+class SealedBox(encoding.Encodable, SecretStringFixer, Generic[_Key]):
     """
     The SealedBox class boxes and unboxes messages addressed to
     a specified key-pair by using ephemeral sender's key pairs,
@@ -332,6 +350,9 @@ class SealedBox(encoding.Encodable, StringFixer, Generic[_Key]):
         to decrypt messages.
 
     .. versionadded:: 1.2
+
+    .. note:: A ``SealedBox`` may hold a private key, so stringifying it always
+        produces a redacted placeholder rather than any key bytes.
     """
 
     _public_key: bytes

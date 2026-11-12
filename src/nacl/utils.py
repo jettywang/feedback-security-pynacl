@@ -66,6 +66,25 @@ class StringFixer:
         return str(self.__bytes__())
 
 
+class SecretStringFixer:
+    """
+    Mixin for objects holding secret key material.
+
+    Unlike :class:`StringFixer`, this never renders the underlying bytes:
+    ``str()``, ``repr()``, f-strings and container logging all produce a
+    redacted placeholder instead, so key material cannot leak into logs.
+
+    Serialization remains available through the explicit byte-oriented
+    interface: ``bytes(obj)`` and ``obj.encode(encoder=...)``.
+    """
+
+    def __str__(self) -> str:
+        cls = type(self)
+        return f"<{cls.__module__}.{cls.__name__} [redacted]>"
+
+    __repr__ = __str__
+
+
 def bytes_as_string(bytes_in: bytes) -> str:
     return bytes_in.decode("ascii")
 

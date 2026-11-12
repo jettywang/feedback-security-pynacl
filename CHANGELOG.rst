@@ -1,6 +1,22 @@
 Changelog
 =========
 
+Unreleased
+----------
+* **BACKWARDS INCOMPATIBLE:** Objects holding secret key material no longer
+  render their key bytes when stringified. ``str()``, ``repr()``, f-strings,
+  ``%s`` formatting and container (``list``/``tuple``/``dict``) logging for
+  ``nacl.public.PrivateKey``, ``nacl.public.Box``, ``nacl.public.SealedBox``,
+  ``nacl.secret.SecretBox``, ``nacl.secret.Aead`` and
+  ``nacl.signing.SigningKey`` now return a fixed ``[redacted]`` placeholder
+  instead of the underlying bytes (including their ``\\x..`` escaped and hex
+  forms). Serialization is unchanged and still goes through the explicit
+  byte-oriented interface: ``bytes(obj)`` and
+  ``obj.encode(encoder=nacl.encoding.HexEncoder)``. Public keys
+  (``nacl.public.PublicKey`` and ``nacl.signing.VerifyKey``) keep their
+  previous ``str()`` rendering. Code which previously relied on the string
+  form of a secret object must switch to ``bytes(obj)`` or ``obj.encode()``.
+
 1.6.2 (2026-01-01)
 ------------------
 * Updated ``libsodium`` to 1.0.20-stable (2025-12-31 build) to resolve

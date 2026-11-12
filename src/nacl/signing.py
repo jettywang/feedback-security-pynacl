@@ -22,7 +22,7 @@ from nacl.public import (
 from nacl.public import (
     PublicKey as _Curve25519_PublicKey,
 )
-from nacl.utils import StringFixer, random
+from nacl.utils import SecretStringFixer, StringFixer, random
 
 
 class SignedMessage(bytes):
@@ -65,6 +65,9 @@ class VerifyKey(encoding.Encodable, StringFixer):
 
     :param key: [:class:`bytes`] Serialized Ed25519 public key
     :param encoder: A class that is able to decode the `key`
+
+    .. note:: A verify key is not secret, so ``str(key)`` renders its bytes as
+        a ``bytes`` literal. Signing keys do not behave this way.
     """
 
     def __init__(
@@ -148,7 +151,7 @@ class VerifyKey(encoding.Encodable, StringFixer):
         return _Curve25519_PublicKey(raw_pk)
 
 
-class SigningKey(encoding.Encodable, StringFixer):
+class SigningKey(encoding.Encodable, SecretStringFixer):
     """
     Private key for producing digital signatures using the Ed25519 algorithm.
 
@@ -165,6 +168,10 @@ class SigningKey(encoding.Encodable, StringFixer):
 
     :ivar: verify_key: [:class:`~nacl.signing.VerifyKey`] The verify
         (i.e. public) key that corresponds with this signing key.
+
+    .. note:: Stringifying a ``SigningKey`` never prints its seed bytes and
+        yields a redacted placeholder instead. Serialize it explicitly with
+        ``bytes(key)`` or ``key.encode(encoder=...)`` when required.
     """
 
     def __init__(

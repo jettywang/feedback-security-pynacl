@@ -27,8 +27,21 @@ def test_random_bytes_produces_different_bytes():
     assert nacl.utils.random(16) != nacl.utils.random(16)
 
 
-def test_string_fixer():
-    assert str(nacl.secret.SecretBox(b"\x00" * 32)) == str(b"\x00" * 32)
+def test_string_fixer_renders_public_bytes():
+    import nacl.public
+
+    public = nacl.public.PublicKey(b"\x00" * nacl.public.PublicKey.SIZE)
+    assert str(public) == str(bytes(public))
+
+
+def test_secret_string_fixer_redacts_secret_bytes():
+    secret_box = nacl.secret.SecretBox(b"\x00" * 32)
+    rendered = str(secret_box)
+    assert "[redacted]" in rendered
+    assert str(b"\x00" * 32) not in rendered
+    assert repr(secret_box) == rendered
+    # Explicit byte access remains the supported serialization path.
+    assert bytes(secret_box) == b"\x00" * 32
 
 
 def test_deterministic_random_bytes():

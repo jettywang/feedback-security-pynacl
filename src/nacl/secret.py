@@ -18,10 +18,14 @@ from typing import ClassVar
 import nacl.bindings
 from nacl import encoding
 from nacl import exceptions as exc
-from nacl.utils import EncryptedMessage, StringFixer, random
+from nacl.utils import (
+    EncryptedMessage,
+    SecretStringFixer,
+    random,
+)
 
 
-class SecretBox(encoding.Encodable, StringFixer):
+class SecretBox(encoding.Encodable, SecretStringFixer):
     """
     The SecretBox class encrypts and decrypts messages using the given secret
     key.
@@ -49,6 +53,10 @@ class SecretBox(encoding.Encodable, StringFixer):
     :cvar MESSAGEBYTES_MAX: The maximum size of a message which can be
                             safely encrypted with a single key/nonce
                             pair.
+
+    .. note:: Stringifying a ``SecretBox`` produces a redacted placeholder
+        rather than the secret key bytes. Serialize it explicitly with
+        ``bytes(box)`` or ``box.encode(encoder=...)`` when required.
     """
 
     KEY_SIZE: ClassVar[int] = nacl.bindings.crypto_secretbox_KEYBYTES
@@ -155,7 +163,7 @@ class SecretBox(encoding.Encodable, StringFixer):
         return plaintext
 
 
-class Aead(encoding.Encodable, StringFixer):
+class Aead(encoding.Encodable, SecretStringFixer):
     """
     The AEAD class encrypts and decrypts messages using the given secret key.
 
@@ -190,6 +198,10 @@ class Aead(encoding.Encodable, StringFixer):
     :cvar MESSAGEBYTES_MAX: The maximum size of a message which can be
                             safely encrypted with a single key/nonce
                             pair.
+
+    .. note:: Stringifying an ``Aead`` produces a redacted placeholder rather
+        than the secret key bytes. Serialize it explicitly with ``bytes(aead)``
+        or ``aead.encode(encoder=...)`` when required.
     """
 
     KEY_SIZE = nacl.bindings.crypto_aead_xchacha20poly1305_ietf_KEYBYTES

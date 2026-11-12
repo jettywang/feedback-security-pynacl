@@ -3,6 +3,36 @@ Utilities
 
 .. currentmodule:: nacl.utils
 
+.. class:: StringFixer
+
+    Mixin which makes ``str(obj)`` (and therefore f-strings and ``%s``
+    formatting) equivalent to ``str(bytes(obj))``. It is used by the public
+    key classes :class:`~nacl.public.PublicKey` and
+    :class:`~nacl.signing.VerifyKey`, whose key material is not secret.
+
+.. class:: SecretStringFixer
+
+    Mixin for classes which hold secret key material:
+    :class:`~nacl.public.PrivateKey`, :class:`~nacl.public.Box`,
+    :class:`~nacl.public.SealedBox`, :class:`~nacl.secret.SecretBox`,
+    :class:`~nacl.secret.Aead` and :class:`~nacl.signing.SigningKey`.
+
+    Rendering such an object never includes the underlying bytes. Every
+    rendering channel -- ``str(obj)``, ``repr(obj)``, f-strings,
+    ``"%s" % obj`` and logging the object directly or inside a
+    ``list``/``tuple``/``dict`` -- produces a fixed placeholder of the form
+    ``<module.ClassName [redacted]>``, so neither the raw bytes nor their
+    escaped (``\\x..``) or hexadecimal forms can leak into logs.
+
+    To deliberately serialize a secret, use the explicit byte-oriented
+    interface instead of string formatting::
+
+        raw = bytes(secret_box)
+        as_hex = secret_box.encode(encoder=nacl.encoding.HexEncoder)
+
+    Code which previously relied on ``str(secret)`` returning the bytes must
+    migrate to one of those calls.
+
 .. class:: EncryptedMessage
 
     A ``bytes`` subclass that holds a message that has been encrypted by a

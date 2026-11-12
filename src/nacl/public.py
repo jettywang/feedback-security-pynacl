@@ -13,7 +13,8 @@
 # limitations under the License.
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, Generic, TypeVar
+from enum import Enum
+from typing import TYPE_CHECKING, ClassVar, Generic, NamedTuple, TypeVar
 
 import nacl.bindings
 from nacl import encoding
@@ -23,6 +24,18 @@ from nacl.utils import EncryptedMessage, StringFixer, random
 
 if TYPE_CHECKING:
     from typing_extensions import Self
+
+
+class SessionRole(str, Enum):
+    """
+    The role used by one side when deriving :class:`SessionKeys`.
+
+    Exactly one side of an exchange must use :attr:`CLIENT`; the other side
+    must use :attr:`SERVER`.
+    """
+
+    CLIENT = "client"
+    SERVER = "server"
 
 
 class PublicKey(encoding.Encodable, StringFixer):
@@ -162,6 +175,51 @@ class PrivateKey(encoding.Encodable, StringFixer):
         :rtype: :class:`~nacl.public.PrivateKey`
         """
         return cls(random(PrivateKey.SIZE), encoder=encoding.RawEncoder)
+
+
+class SessionKeys(NamedTuple):
+    """
+    A pair of symmetric keys with explicit directions.
+
+    Use :attr:`send` for messages sent to the peer and :attr:`receive` for
+    messages received from the peer. The key bytes are equivalent to the
+    ``tx`` and ``rx`` bytes returned by the lower level
+    :func:`nacl.bindings.crypto_kx_client_session_keys` and
+    :func:`nacl.bindings.crypto_kx_server_session_keys` functions.
+    """
+
+    send: bytes
+    receive: bytes
+
+    @classmethod
+    def derive(
+        cls,
+        own_keypair: (
+            PrivateKey | tuple[PublicKey, PrivateKey] | tuple[bytes, bytes]
+        ),
+        peer_public_key: PublicKey | bytes,
+        role: SessionRole | str,
+    ) -> SessionKeys:
+        """
+        Derive a new :class:`SessionKeys` instance.
+        """
+        return derive_session_keys(own_keypair, peer_public_key, role)
+
+    @property
+    def send_key(self) -> bytes:
+        return self.send
+
+    @property
+    def receive_key(self) -> bytes:
+        return self.receive
+
+    @property
+    def tx(self) -> bytes:
+        return self.send
+
+    @property
+    def rx(self) -> bytes:
+        return self.receive
 
 
 class Box(encoding.Encodable, StringFixer):
@@ -415,3 +473,111 @@ class SealedBox(encoding.Encodable, StringFixer, Generic[_Key]):
         )
 
         return plaintext
+
+
+def _coerce_session_role(role: SessionRole | str) -> SessionRole:
+    if isinstance(role, SessionRole):
+        return role
+    if isinstance(role, str):
+        try:
+            return SessionRole(role)
+        except ValueError:
+            raise exc.ValueError(
+                "role must be 'client' or 'server'"
+            ) from None
+    raise exc.TypeError(
+        "role must be SessionRole.CLIENT or SessionRole.SERVER"
+    )
+
+
+def _local_key_pair_bytes(
+    own_keypair: (
+        PrivateKey | tuple[PublicKey, PrivateKey] | tuple[bytes, bytes]
+    ),
+) -> tuple[bytes, bytes]:
+    if isinstance(own_keypair, PrivateKey):
+        return (
+            own_keypair.public_key.encode(encoder=encoding.RawEncoder),
+            own_keypair.encode(encoder=encoding.RawEncoder),
+        )
+
+    if isinstance(own_keypair, (tuple, list)) and len(own_keypair) == 2:
+        first_key, second_key = own_keypair
+        if isinstance(first_key, PrivateKey) and isinstance(
+            second_key, PublicKey
+        ):
+            return (
+                second_key.encode(encoder=encoding.RawEncoder),
+                first_key.encode(encoder=encoding.RawEncoder),
+            )
+        if isinstance(first_key, PublicKey) and isinstance(
+            second_key, PrivateKey
+        ):
+            return (
+                first_key.encode(encoder=encoding.RawEncoder),
+                second_key.encode(encoder=encoding.RawEncoder),
+            )
+        if isinstance(first_key, bytes) and isinstance(second_key, bytes):
+            return first_key, second_key
+
+    raise exc.TypeError(
+        "own_keypair must be a PrivateKey or a "
+        "(PublicKey, PrivateKey) key pair"
+    )
+
+
+def _peer_public_key_bytes(
+    peer_public_key: PublicKey | bytes,
+) -> bytes:
+    if isinstance(peer_public_key, PublicKey):
+        return peer_public_key.encode(encoder=encoding.RawEncoder)
+    if isinstance(peer_public_key, bytes):
+        return peer_public_key
+    raise exc.TypeError(
+        "peer_public_key must be a PublicKey instance or raw bytes"
+    )
+
+
+def derive_session_keys(
+    own_keypair: (
+        PrivateKey | tuple[PublicKey, PrivateKey] | tuple[bytes, bytes]
+    ),
+    peer_public_key: PublicKey | bytes,
+    role: SessionRole | str,
+) -> SessionKeys:
+    """
+    Derive directional session keys for one side of a key exchange.
+
+    The peer public key must already have been authenticated through a
+    trusted out-of-band channel. This function does not prove that the peer
+    holds the matching private key.
+
+    :param own_keypair: the local :class:`PrivateKey`, which carries the
+        local public key, or a key pair containing the matching
+        :class:`PublicKey` and :class:`PrivateKey`
+    :param peer_public_key: the already authenticated peer's
+        :class:`PublicKey`
+    :param role: :data:`SessionRole.CLIENT` or
+        :data:`SessionRole.SERVER` (the strings ``"client"`` and
+        ``"server"`` are also accepted)
+    :return: a :class:`SessionKeys` value whose ``send`` key encrypts
+        outgoing messages and whose ``receive`` key decrypts incoming
+        messages
+    :raises TypeError: if an argument has an unsupported type
+    :raises ValueError: if the role is unknown, the local public and
+        private keys do not match, or a key has the wrong length
+    """
+    session_role = _coerce_session_role(role)
+    local_public_key, local_secret_key = _local_key_pair_bytes(own_keypair)
+    peer_key = _peer_public_key_bytes(peer_public_key)
+
+    keys = nacl.bindings.crypto_kx_session_keys(
+        local_public_key,
+        local_secret_key,
+        peer_key,
+        session_role.value,
+    )
+    return SessionKeys(send=keys.send, receive=keys.receive)
+
+
+session_keys = derive_session_keys

@@ -162,6 +162,73 @@ he must create a SealedBox using his own private key:
     Kill all kittens
 
 
+Session Keys
+~~~~~~~~~~~~
+
+:func:`~nacl.public.derive_session_keys` provides a safer interface on top
+of the ``crypto_kx`` key-exchange functions. The caller supplies a complete
+local key pair, the peer's already authenticated public key, and an explicit
+role. The result uses the names :attr:`~nacl.public.SessionKeys.send` and
+:attr:`~nacl.public.SessionKeys.receive` instead of an unnamed
+``(rx, tx)`` tuple.
+
+.. testcode::
+
+    from nacl.public import (
+        PrivateKey,
+        SessionRole,
+        derive_session_keys,
+    )
+    from nacl.secret import SecretBox
+
+    client_private_key = PrivateKey.generate()
+    server_private_key = PrivateKey.generate()
+
+    client_keys = derive_session_keys(
+        client_private_key,
+        server_private_key.public_key,
+        SessionRole.CLIENT,
+    )
+    server_keys = derive_session_keys(
+        server_private_key,
+        client_private_key.public_key,
+        SessionRole.SERVER,
+    )
+
+    assert client_keys.send == server_keys.receive
+    assert client_keys.receive == server_keys.send
+
+    ciphertext = SecretBox(client_keys.send).encrypt(b"session message")
+    plaintext = SecretBox(server_keys.receive).decrypt(ciphertext)
+    assert plaintext == b"session message"
+
+One side must use :data:`~nacl.public.SessionRole.CLIENT` and the other must
+use :data:`~nacl.public.SessionRole.SERVER`. If both sides select the same
+role, their keys are not complementary and messages encrypted with
+:attr:`~nacl.public.SessionKeys.send` cannot be decrypted with the peer's
+:attr:`~nacl.public.SessionKeys.receive`.
+
+The peer public key must be obtained and authenticated before deriving keys.
+Use a trusted source such as pinned configuration, a trusted key directory
+or certificate, or an out-of-band fingerprint comparison. ``crypto_kx`` does
+not authenticate the peer; accepting an unauthenticated public key permits an
+active attacker to establish separate session keys with both sides.
+
+The returned keys are normal 32-byte symmetric keys, so they can be used with
+:class:`~nacl.secret.SecretBox`, :class:`~nacl.secret.Aead`, or another
+32-byte cipher. They are the same bytes produced by the lower level
+``crypto_kx_*_session_keys`` functions: ``send`` is the lower level ``tx``
+key and ``receive`` is the lower level ``rx`` key.
+
+Derive a fresh pair for each connection or session. Derive again when either
+side rotates a key pair, when the authenticated peer public key changes, when
+the negotiated role changes, when a configured rekey point is reached, or
+when compromise is suspected. Reusing the same long-term key pair produces the
+same session keys on every exchange; prefer a per-session ephemeral
+:class:`PrivateKey`, or otherwise ensure that every nonce used with the keys
+remains unique.
+
+
 Reference
 ---------
 
@@ -195,6 +262,61 @@ Reference
         Generates a random :class:`~nacl.public.PrivateKey` object
 
         :return: An instance of :class:`~nacl.public.PrivateKey`.
+
+.. class:: SessionRole
+
+    The role used by one side of a key exchange.
+
+    .. attribute:: CLIENT
+
+        The initiator-side role.
+
+    .. attribute:: SERVER
+
+        The responder-side role.
+
+.. class:: SessionKeys(send, receive)
+
+    Symmetric session keys with explicit directions.
+
+    .. attribute:: send
+
+        The 32-byte key used to encrypt messages sent to the peer. This is
+        the lower level ``tx`` key.
+
+    .. attribute:: receive
+
+        The 32-byte key used to decrypt messages received from the peer.
+        This is the lower level ``rx`` key.
+
+    .. classmethod:: derive(own_keypair, peer_public_key, role)
+
+        Equivalent to calling
+        :func:`~nacl.public.derive_session_keys`.
+
+        :return: An instance of :class:`~nacl.public.SessionKeys`.
+
+.. function:: derive_session_keys(own_keypair, peer_public_key, role)
+
+    Derive directional session keys for one side of a key exchange.
+
+    :param own_keypair: A :class:`~nacl.public.PrivateKey` containing the
+        local key pair, or a matching
+        (:class:`~nacl.public.PublicKey`,
+        :class:`~nacl.public.PrivateKey`) pair. Raw key bytes may be passed
+        as a ``(public_key, secret_key)`` tuple.
+    :param peer_public_key: The peer's already authenticated
+        :class:`~nacl.public.PublicKey`, or its 32 raw bytes.
+    :param role: :data:`SessionRole.CLIENT` or
+        :data:`SessionRole.SERVER`; the strings ``"client"`` and
+        ``"server"`` are also accepted.
+    :return: A :class:`SessionKeys` instance.
+    :raises TypeError: if an argument has an unsupported type or length.
+    :raises ValueError: if the role is unknown or the local public and
+        private keys do not form a matching pair.
+
+``session_keys`` is available as a shorter alias for
+:func:`derive_session_keys`.
 
 .. class:: Box(private_key, public_key)
 

@@ -13,11 +13,14 @@
 # limitations under the License.
 from __future__ import annotations
 
+from typing import NamedTuple
+
 from nacl import exceptions as exc
 from nacl._sodium import ffi, lib
 from nacl.exceptions import ensure
 
 __all__ = [
+    "CryptoKXSessionKeys",
     "crypto_kx_PUBLIC_KEY_BYTES",
     "crypto_kx_SECRET_KEY_BYTES",
     "crypto_kx_SEED_BYTES",
@@ -25,6 +28,7 @@ __all__ = [
     "crypto_kx_client_session_keys",
     "crypto_kx_keypair",
     "crypto_kx_server_session_keys",
+    "crypto_kx_session_keys",
 ]
 
 """
@@ -34,6 +38,35 @@ crypto_kx_PUBLIC_KEY_BYTES: int = lib.crypto_kx_publickeybytes()
 crypto_kx_SECRET_KEY_BYTES: int = lib.crypto_kx_secretkeybytes()
 crypto_kx_SEED_BYTES: int = lib.crypto_kx_seedbytes()
 crypto_kx_SESSION_KEY_BYTES: int = lib.crypto_kx_sessionkeybytes()
+
+
+class CryptoKXSessionKeys(NamedTuple):
+    """
+    Session keys with an unambiguous direction.
+
+    Use :attr:`send` to encrypt outgoing messages and :attr:`receive` to
+    decrypt incoming messages. These are respectively the ``tx`` and ``rx``
+    keys returned by the lower level functions.
+    """
+
+    send: bytes
+    receive: bytes
+
+    @property
+    def send_key(self) -> bytes:
+        return self.send
+
+    @property
+    def receive_key(self) -> bytes:
+        return self.receive
+
+    @property
+    def tx(self) -> bytes:
+        return self.send
+
+    @property
+    def rx(self) -> bytes:
+        return self.receive
 
 
 def crypto_kx_keypair() -> tuple[bytes, bytes]:
@@ -184,3 +217,83 @@ def crypto_kx_server_session_keys(
         ffi.buffer(rx_key, crypto_kx_SESSION_KEY_BYTES)[:],
         ffi.buffer(tx_key, crypto_kx_SESSION_KEY_BYTES)[:],
     )
+
+
+def crypto_kx_session_keys(
+    public_key: bytes,
+    secret_key: bytes,
+    peer_public_key: bytes,
+    role: str,
+) -> CryptoKXSessionKeys:
+    """
+    Generate session keys with explicit send and receive directions.
+
+    The caller supplies the complete local key pair, the already
+    authenticated peer public key, and the local ``role``. The role must be
+    ``"client"`` on one side and ``"server"`` on the other side.
+
+    :param public_key: local public key
+    :type public_key: bytes
+    :param secret_key: local secret key
+    :type secret_key: bytes
+    :param peer_public_key: authenticated peer public key
+    :type peer_public_key: bytes
+    :param role: ``"client"`` or ``"server"``
+    :type role: str
+    :return: session keys, where ``send`` is the outgoing key and
+        ``receive`` is the incoming key
+    :rtype: :class:`CryptoKXSessionKeys`
+    """
+    ensure(
+        role in ("client", "server"),
+        "role must be 'client' or 'server'",
+        raising=exc.ValueError,
+    )
+    ensure(
+        isinstance(public_key, bytes)
+        and len(public_key) == crypto_kx_PUBLIC_KEY_BYTES,
+        f"Public key must be a {crypto_kx_PUBLIC_KEY_BYTES} "
+        "bytes long bytes sequence",
+        raising=exc.TypeError,
+    )
+    ensure(
+        isinstance(secret_key, bytes)
+        and len(secret_key) == crypto_kx_SECRET_KEY_BYTES,
+        f"Secret key must be a {crypto_kx_SECRET_KEY_BYTES} "
+        "bytes long bytes sequence",
+        raising=exc.TypeError,
+    )
+    ensure(
+        isinstance(peer_public_key, bytes)
+        and len(peer_public_key) == crypto_kx_PUBLIC_KEY_BYTES,
+        f"Peer public key must be a {crypto_kx_PUBLIC_KEY_BYTES} "
+        "bytes long bytes sequence",
+        raising=exc.TypeError,
+    )
+
+    derived_public_key = ffi.new(
+        "unsigned char[]", crypto_kx_PUBLIC_KEY_BYTES
+    )
+    rc = lib.crypto_scalarmult_base(derived_public_key, secret_key)
+    ensure(rc == 0, "Unexpected library error", raising=exc.RuntimeError)
+    ensure(
+        lib.sodium_memcmp(
+            public_key,
+            derived_public_key,
+            crypto_kx_PUBLIC_KEY_BYTES,
+        )
+        == 0,
+        "The public key does not match the secret key",
+        raising=exc.ValueError,
+    )
+
+    if role == "client":
+        rx_key, tx_key = crypto_kx_client_session_keys(
+            public_key, secret_key, peer_public_key
+        )
+    else:
+        rx_key, tx_key = crypto_kx_server_session_keys(
+            public_key, secret_key, peer_public_key
+        )
+
+    return CryptoKXSessionKeys(send=tx_key, receive=rx_key)

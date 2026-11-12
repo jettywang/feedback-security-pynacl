@@ -129,6 +129,7 @@ from nacl.bindings.crypto_hash import (
     crypto_hash_sha512_BYTES,
 )
 from nacl.bindings.crypto_kx import (
+    CryptoKXSessionKeys,
     crypto_kx_client_session_keys,
     crypto_kx_keypair,
     crypto_kx_PUBLIC_KEY_BYTES,
@@ -137,6 +138,7 @@ from nacl.bindings.crypto_kx import (
     crypto_kx_seed_keypair,
     crypto_kx_server_session_keys,
     crypto_kx_SESSION_KEY_BYTES,
+    crypto_kx_session_keys,
 )
 from nacl.bindings.crypto_pwhash import (
     crypto_pwhash_alg,
@@ -392,6 +394,8 @@ __all__ = [
     "crypto_kx_keypair",
     "crypto_kx_seed_keypair",
     "crypto_kx_server_session_keys",
+    "crypto_kx_session_keys",
+    "CryptoKXSessionKeys",
     "crypto_pwhash_ALG_ARGON2I13",
     "crypto_pwhash_ALG_ARGON2ID13",
     "crypto_pwhash_ALG_DEFAULT",

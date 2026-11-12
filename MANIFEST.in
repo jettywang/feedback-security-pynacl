@@ -54,3 +54,6 @@ exclude release.py
 
 # Exclude the libsodium msvc zip
 exclude src/libsodium*.zip
+
+# example files
+recursive-include examples *.py

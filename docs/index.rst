@@ -8,6 +8,7 @@ Contents
 
    public
    secret
+   record_migration
    signing
    hashing
    password_hashing

@@ -12,10 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
 
 from nacl.exceptions import CryptPrefixError
 
 from . import _argon2, argon2i, argon2id, scrypt
+from ._policy import Argon2Parameters as Argon2Parameters
+from ._policy import Argon2ResourcePolicy as Argon2ResourcePolicy
+from ._policy import parse_argon2_hash as parse_argon2_hash
 
 STRPREFIX = argon2id.STRPREFIX
 
@@ -54,14 +58,38 @@ scryptsalsa208sha256_str = scrypt.str
 verify_scryptsalsa208sha256 = scrypt.verify
 
 
-def verify(password_hash: bytes, password: bytes) -> bool:
+def verify(
+    password_hash: bytes,
+    password: bytes,
+    policy: Argon2ResourcePolicy | None = None,
+) -> bool:
     """
     Takes a modular crypt encoded stored password hash derived using one
     of the algorithms supported by `libsodium` and checks if the user provided
     password will hash to the same string when using the parameters saved
     in the stored hash
+
+    When an optional :class:`.Argon2ResourcePolicy` is passed as ``policy``,
+    the cost parameters of argon2i and argon2id hashes are parsed and
+    checked against the policy's resource bounds *before* any password
+    hashing computation is started. A rejected hash raises
+    :class:`nacl.exceptions.PasswordHashPolicyError`; malformed hashes raise
+    the usual :class:`nacl.exceptions.ValueError` instead, so both cases
+    stay distinct from an :class:`nacl.exceptions.InvalidkeyError` raised on
+    a password mismatch. When ``policy`` is ``None`` (the default) the
+    historical, unchecked behavior is preserved.
+
+    :param password_hash: password hash serialized in modular crypt() format
+    :type password_hash: bytes
+    :param password: user provided password
+    :type password: bytes
+    :param policy: optional resource policy enforced on argon2 hashes
+    :type policy: Argon2ResourcePolicy or None
+    :rtype: boolean
     """
     if password_hash.startswith((argon2id.STRPREFIX, argon2i.STRPREFIX)):
+        if policy is not None:
+            policy.check(password_hash)
         return argon2id.verify(password_hash, password)
     elif scrypt.AVAILABLE and password_hash.startswith(scrypt.STRPREFIX):
         return scrypt.verify(password_hash, password)

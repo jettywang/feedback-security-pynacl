@@ -132,6 +132,56 @@ and checks the compliance of the proposed password with the stored hash
     nacl.exceptions.CryptPrefixError: given password_hash is not in a supported format
 
 
+Optional resource policy on verification
+----------------------------------------
+
+When password hashes are imported from a partner system, the whole
+modular crypt string is handed to the underlying library, which derives
+its memory and iteration cost from the parameters encoded in the string.
+A hash asking for an unexpectedly large cost can therefore consume all
+the memory or CPU available to the login service.
+
+To guard against this, :py:func:`~nacl.pwhash.verify` accepts an optional
+:class:`~nacl.pwhash.Argon2ResourcePolicy`. When a policy is provided,
+the cost parameters of ``argon2i`` and ``argon2id`` hashes are parsed and
+checked *before* any password hashing computation is started:
+
+.. doctest::
+    :pyversion: >= 3.4
+
+    >>> import nacl.exceptions
+    >>> policy = nacl.pwhash.Argon2ResourcePolicy(
+    ...     max_memlimit=64 * 1024 * 1024,  # bytes
+    ...     max_opslimit=4,
+    ... )
+    >>> acceptable = nacl.pwhash.argon2id.str(
+    ...     b'my password', opslimit=1, memlimit=8192
+    ... )
+    >>> nacl.pwhash.verify(acceptable, b'my password', policy=policy)
+    True
+    >>> # a hash asking for 128 MiB of memory is rejected up-front
+    ... expensive = acceptable.replace(b'm=8,', b'm=131072,')
+    >>> nacl.pwhash.verify(expensive, b'my password', policy=policy)
+    Traceback (most recent call last):
+        ...
+    nacl.exceptions.PasswordHashPolicyError: password hash requests ...
+
+The three failure modes stay clearly separated:
+
+* a malformed hash (missing or duplicated cost field, non numeric or out
+  of range value) raises :class:`nacl.exceptions.ValueError`;
+* a supported prefix carrying an unknown algorithm raises
+  :class:`nacl.exceptions.CryptPrefixError`;
+* a well formed hash whose cost exceeds the policy raises
+  :class:`nacl.exceptions.PasswordHashPolicyError`;
+* only a well formed, accepted hash reaches the password hashing
+  computation, which raises :class:`nacl.exceptions.InvalidkeyError`
+  on an actual password mismatch.
+
+Calling :py:func:`~nacl.pwhash.verify` without a ``policy`` argument
+keeps the historical, unchecked behavior.
+
+
 Key derivation
 --------------
 

@@ -47,14 +47,64 @@ ascii encoded hashing and verification.
     .. versionadded:: 1.2
 
 
-.. function:: verify(password_hash, password)
+.. function:: verify(password_hash, password, policy=None)
 
     This function checks if hashing the proposed password, with
     the same construction and parameters encoded in the password hash
     would generate the same encoded string, thus verifying the
     correct password has been proposed in an authentication attempt.
 
+    :param policy: optional :class:`.Argon2ResourcePolicy` enforcing
+                   resource bounds on argon2i and argon2id hashes before
+                   the password hashing computation is started. When
+                   ``None`` (the default) no check is performed.
+    :raises nacl.exceptions.PasswordHashPolicyError: if the hash cost
+            parameters exceed the policy bounds
+    :raises nacl.exceptions.ValueError: if the argon2 hash string is
+            malformed while a policy is in use
+
     .. versionadded:: 1.2
+    .. versionchanged:: 1.7.0
+        added the optional ``policy`` argument
+
+
+.. class:: Argon2ResourcePolicy(max_memlimit, max_opslimit, max_lanes=16777215)
+
+    Immutable, parser-only resource policy for argon2i and argon2id
+    password hashes. The modular crypt ``m`` value is expressed in KiB;
+    ``max_memlimit`` is expressed in bytes, while ``max_opslimit`` and
+    ``max_lanes`` bound the ``t`` and ``p`` values respectively.
+
+    .. method:: check(password_hash)
+
+        Parse ``password_hash`` and raise
+        :class:`nacl.exceptions.PasswordHashPolicyError` if any of its
+        cost parameters exceeds the configured bounds, returning the
+        parsed :class:`.Argon2Parameters` otherwise. No password hashing
+        computation is performed.
+
+    .. versionadded:: 1.7.0
+
+
+.. class:: Argon2Parameters
+
+    The parameters parsed from an argon2 modular crypt hash: the
+    ``algorithm`` name, the encoding ``version``, the memory cost in KiB
+    (``memlimit_kib``) and bytes (``memlimit``), the ``opslimit`` and
+    the number of ``lanes``.
+
+    .. versionadded:: 1.7.0
+
+
+.. function:: parse_argon2_hash(password_hash)
+
+    Parse the cost parameters of an argon2i or argon2id modular crypt
+    hash and return an :class:`.Argon2Parameters` instance. Malformed
+    strings raise :class:`nacl.exceptions.ValueError` and hashes using an
+    unsupported algorithm raise :class:`nacl.exceptions.CryptPrefixError`.
+    No password hashing computation is performed.
+
+    .. versionadded:: 1.7.0
 
 .. rubric:: Module level constants
 

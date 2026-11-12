@@ -58,6 +58,15 @@ class CryptPrefixError(InvalidkeyError):
     pass
 
 
+class PasswordHashPolicyError(CryptoError):
+    """
+    Raised when an optional password hash resource policy rejects a hash
+    whose cost parameters would exceed the resources the service is willing
+    to spend on a verification. It is raised *before* any password hashing
+    computation is started.
+    """
+
+
 class UnavailableError(RuntimeError):
     """
     is a subclass of :class:`~nacl.exceptions.RuntimeError`, raised when

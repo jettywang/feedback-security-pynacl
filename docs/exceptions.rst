@@ -35,6 +35,23 @@ PyNaCl specific exceptions
     Raised on password/key verification mismatch
 
 
+.. class:: CryptPrefixError
+
+    is a subclass of :class:`~nacl.exceptions.InvalidkeyError`, raised
+    when a password hash uses a prefix (and therefore an algorithm)
+    :py:func:`nacl.pwhash.verify` does not know how to handle
+
+
+.. class:: PasswordHashPolicyError
+
+    Raised by an optional :class:`nacl.pwhash.Argon2ResourcePolicy`
+    when a password hash requests memory, iterations or parallelism
+    beyond the configured policy. It is raised before any password
+    hashing computation is started, and is distinct both from
+    :class:`~nacl.exceptions.InvalidkeyError` (a password mismatch) and
+    :class:`~nacl.exceptions.ValueError` (a malformed password hash).
+
+
 .. class:: UnavailableError
 
     is a subclass of :class:`~nacl.exceptions.RuntimeError`, raised when

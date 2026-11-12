@@ -1,6 +1,18 @@
 Changelog
 =========
 
+1.7.0 (UNRELEASED)
+------------------
+* Added an optional ``Argon2ResourcePolicy`` to ``nacl.pwhash.verify``.
+  When supplied, the memory, iteration and parallelism parameters encoded
+  in argon2i and argon2id hashes are parsed and checked against the
+  policy before any password hashing computation is started. Malformed
+  hashes raise ``ValueError``, unsupported algorithms raise
+  ``CryptPrefixError`` and over-budget hashes raise the new
+  ``nacl.exceptions.PasswordHashPolicyError``, all distinct from the
+  ``InvalidkeyError`` raised on a password mismatch. Calling ``verify``
+  without a policy keeps the previous behavior unchanged.
+
 1.6.2 (2026-01-01)
 ------------------
 * Updated ``libsodium`` to 1.0.20-stable (2025-12-31 build) to resolve
